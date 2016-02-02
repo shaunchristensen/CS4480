@@ -92,14 +92,14 @@ namespace Client
                             {
                                 stringResponse = streamReader.ReadToEnd();
 
-                                Console.WriteLine(stringResponse);
+                                Console.WriteLine(stringResponse + "\n");
                             }
                         }
                     }
                 }
                 catch (SocketException e)
                 {
-                    Console.WriteLine("Error: Unable to connec to proxy. " + e.Message + ".\n");
+                    Console.WriteLine("Error: Unable to connect to proxy. " + e.Message + ".\n");
                 }
             }
         }
