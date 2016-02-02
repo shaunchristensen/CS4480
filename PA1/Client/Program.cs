@@ -12,85 +12,109 @@ namespace Client
         static bool boolRequest;
         static byte[] bytes;
         static int intBytes, intPort;
-        static string s1, s2, stringRequest, stringResponse;
+        static string s1, s2, stringPort, stringRequest, stringResponse;
 
         static Encoding encoding;
         static Stream stream;
+        static TcpClient tcpClient;
         static Timer timer;
 
         static void Main(string[] args)
         {
-            encoding = Encoding.UTF8;
-            timer = new Timer(5000);
-            timer.Elapsed += TimerElapsed;
-
             Console.WriteLine("Starting client on localhost. Enter two blank linkes successively to execute HTTP requests.\n");
+
+/*            string[] ss1 = Regex.Split("GET http://google.com:11 HTTP/1.1", @"(\r\n)+");
+
+            // delete me
+            Console.WriteLine(ss1.Length);
+
+            string[] ss2 = Regex.Split(ss1[0].Trim(), @"\s+");
+
+            string stringMethod = ss2[0];
+            Console.WriteLine("?" + ss2.Length + ss2[0] + ss2[1] + ss2[2]);
+            */
+
+            encoding = Encoding.UTF8;
 
             while (true)
             {
-                stringRequest = stringResponse = string.Empty;
-
                 Console.Write("Enter HTTP request: ");
 
-                if (ReadInput())
+                stringPort = stringRequest = stringResponse = string.Empty;
+
+                s1 = Console.ReadLine();
+
+                if (Regex.IsMatch(s1, @"(?i)http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
                 {
-                    return;
+                    stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"\D+HTTP/1\.[01].*$", "");
+                    s1 = Regex.Replace(s1, @":" + stringPort + @"\DHTTP/1\.[01].*$", "") + Regex.Replace(s1, @"(?i)^.*http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:" + stringPort, "");
                 }
+
+                stringRequest += s1 + "\r\n";
 
                 do
                 {
                     s2 = s1;
+                    s1 = Console.ReadLine();
 
-                    if (ReadInput())
+                    if (stringPort.Length == 0 && Regex.IsMatch(s1, @"(?i)host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
                     {
-                        return;
+                        stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"(\D+.*)?$", "");
+                        s1 = Regex.Replace(s1, ":" + stringPort + @"(\D+.*)?$", "") + Regex.Replace(s1, @"(?i)^.*host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:" + stringPort, "");
                     }
+
+                    stringRequest += s1 + "\r\n";
                 } while (s1.Length > 0 || s2.Length > 0);
 
-                if (Regex.IsMatch(stringRequest, @"(?i)(http://|host:\s*)\w+(\.\w+)+:(\d+)"))
+                if (Regex.IsMatch(stringRequest, @"\S+"))
                 {
-                    Console.WriteLine("Port");
-                    // capture?
-                    intPort = 80;
+                    Console.CursorTop--;
                 }
-                else
+
+                boolRequest = true;
+                bytes = encoding.GetBytes(stringRequest.ToCharArray());
+
+                if (!int.TryParse(stringPort, out intPort))
                 {
                     intPort = 80;
                 }
 
                 try
                 {
-                    using (TcpClient tcpClient = new TcpClient())
+                    using (tcpClient = new TcpClient())
                     {
                         tcpClient.Connect("127.0.0.1", intPort);
-                        stream = tcpClient.GetStream();
 
-                        bytes = encoding.GetBytes(stringRequest.ToCharArray());
-                        stream.Write(bytes, 0, bytes.Length);
-
-                        boolRequest = true;
-                        bytes = new byte[1024];
-
-                        timer.Start();
-
-                        while (boolRequest)
+                        using (stream = tcpClient.GetStream())
                         {
-                            intBytes = stream.Read(bytes, 0, 1024);
+                            stream.Write(bytes, 0, bytes.Length);
+                            bytes = new byte[1024];
 
-                            if (intBytes > 0)
+                            using (timer = new Timer(5000))
                             {
-                                for (int i = 0; i < intBytes; i++)
+                                timer.Elapsed += TimerElapsed;
+                                timer.Start();
+
+                                while (boolRequest)
                                 {
-                                    stringResponse += Convert.ToChar(bytes[i]);
+                                    intBytes = stream.Read(bytes, 0, 1024);
+
+                                    if (intBytes > 0)
+                                    {
+                                        boolRequest = false;
+
+                                        for (int i = 0; i < intBytes; i++)
+                                        {
+                                            stringResponse += Convert.ToChar(bytes[i]);
+                                        }
+
+                                        Console.WriteLine(stringResponse + "\n");
+
+                                        break;
+                                    }
                                 }
-
-                                Console.WriteLine(stringResponse + "\n");
-
-                                break;
                             }
                         }
-
-                        tcpClient.Close();
                     }
                 }
                 catch (SocketException e)
@@ -100,27 +124,16 @@ namespace Client
             }
         }
 
-        public static bool ReadInput()
+        static void TimerElapsed(object source, ElapsedEventArgs e)
         {
-            s1 = Console.ReadLine();
-
-            if (Regex.IsMatch(s1, @"^(?i)(close|disconnect|exit|log\s*out|quit)$"))
+            if (boolRequest)
             {
-                return true;
+                timer.Stop();
+
+                boolRequest = false;
+
+                Console.WriteLine("Request timed out. Please try again.\n");
             }
-
-            stringRequest += s1 + "\r\n";
-
-            return false;
-        }
-
-        public static void TimerElapsed(object source, ElapsedEventArgs e)
-        {
-            timer.Stop();
-
-            boolRequest = false;
-
-            Console.WriteLine("Request timed out. Please try again.\n");
         }
     }
-}
+    }
