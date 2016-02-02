@@ -1,38 +1,35 @@
-﻿using System;
+﻿/*
+*   Author:  Shaun Christensen
+*   Course:  CS 4480 - Computer Networks
+*   Created: 2016.01.31
+*   Edited:  2016.02.02
+*   Project: PA1
+*   Summary: Build a web proxy capable of accepting HTTP requests, forwarding requests to remote (origin) servers, and returning response data to a client. The proxy must handle concurrent requests.
+*/
+
+using System;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Timers;
 
 namespace Client
 {
     class Program
     {
-        static bool boolRequest;
         static byte[] bytes;
-        static int intBytes, intPort;
+        static int intPort;
         static string s1, s2, stringPort, stringRequest, stringResponse;
 
         static Encoding encoding;
         static Stream stream;
+        static StreamReader streamReader;
         static TcpClient tcpClient;
-        static Timer timer;
 
         static void Main(string[] args)
         {
             Console.WriteLine("Starting client on localhost. Enter two blank linkes successively to execute HTTP requests.\n");
-
-/*            string[] ss1 = Regex.Split("GET http://google.com:11 HTTP/1.1", @"(\r\n)+");
-
-            // delete me
-            Console.WriteLine(ss1.Length);
-
-            string[] ss2 = Regex.Split(ss1[0].Trim(), @"\s+");
-
-            string stringMethod = ss2[0];
-            Console.WriteLine("?" + ss2.Length + ss2[0] + ss2[1] + ss2[2]);
-            */
 
             encoding = Encoding.UTF8;
 
@@ -41,9 +38,9 @@ namespace Client
                 Console.Write("Enter HTTP request: ");
 
                 stringPort = stringRequest = stringResponse = string.Empty;
-
                 s1 = Console.ReadLine();
 
+                // if the request contains an absolute URL followed by a port number then extract and remove the port number
                 if (Regex.IsMatch(s1, @"(?i)http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
                 {
                     stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"\D+HTTP/1\.[01].*$", "");
@@ -57,6 +54,7 @@ namespace Client
                     s2 = s1;
                     s1 = Console.ReadLine();
 
+                    // if the header contains the host followed by a port number then extract and remove the port number
                     if (stringPort.Length == 0 && Regex.IsMatch(s1, @"(?i)host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
                     {
                         stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"(\D+.*)?$", "");
@@ -66,15 +64,16 @@ namespace Client
                     stringRequest += s1 + "\r\n";
                 } while (s1.Length > 0 || s2.Length > 0);
 
+                // if the request is not blank then move the cursor up one line
                 if (Regex.IsMatch(stringRequest, @"\S+"))
                 {
                     Console.CursorTop--;
                 }
 
-                boolRequest = true;
                 bytes = encoding.GetBytes(stringRequest.ToCharArray());
 
-                if (!int.TryParse(stringPort, out intPort))
+                // if the port number cannot be parsed or is negative then set the port number to 80 by default
+                if (!int.TryParse(stringPort, out intPort) || intPort < 0)
                 {
                     intPort = 80;
                 }
@@ -83,36 +82,17 @@ namespace Client
                 {
                     using (tcpClient = new TcpClient())
                     {
-                        tcpClient.Connect("127.0.0.1", intPort);
+                        tcpClient.Connect(IPAddress.Parse("127.0.0.1"), intPort);
 
                         using (stream = tcpClient.GetStream())
                         {
                             stream.Write(bytes, 0, bytes.Length);
-                            bytes = new byte[1024];
 
-                            using (timer = new Timer(5000))
+                            using (streamReader = new StreamReader(stream))
                             {
-                                timer.Elapsed += TimerElapsed;
-                                timer.Start();
+                                stringResponse = streamReader.ReadToEnd();
 
-                                while (boolRequest)
-                                {
-                                    intBytes = stream.Read(bytes, 0, 1024);
-
-                                    if (intBytes > 0)
-                                    {
-                                        boolRequest = false;
-
-                                        for (int i = 0; i < intBytes; i++)
-                                        {
-                                            stringResponse += Convert.ToChar(bytes[i]);
-                                        }
-
-                                        Console.WriteLine(stringResponse + "\n");
-
-                                        break;
-                                    }
-                                }
+                                Console.WriteLine(stringResponse);
                             }
                         }
                     }
@@ -123,17 +103,5 @@ namespace Client
                 }
             }
         }
-
-        static void TimerElapsed(object source, ElapsedEventArgs e)
-        {
-            if (boolRequest)
-            {
-                timer.Stop();
-
-                boolRequest = false;
-
-                Console.WriteLine("Request timed out. Please try again.\n");
-            }
-        }
     }
-    }
+}
