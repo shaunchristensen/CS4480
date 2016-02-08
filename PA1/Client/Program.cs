@@ -20,8 +20,8 @@ namespace Client
     class Program
     {
         static byte[] bytes;
-        static int intPort;
-        static string s1, s2, stringPort, stringRequest, stringResponse;
+        static int intCursorTop, intPort;
+        static string stringInput, stringPort, stringRequest, stringResponse;
 
         static Encoding encoding;
         static Match match;
@@ -37,24 +37,43 @@ namespace Client
 
             while (true)
             {
+                // clear the console buffer
+                while (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                }
+
                 Console.Write("Enter HTTP request: ");
 
+                intCursorTop = -1;
                 stringPort = stringRequest = stringResponse = string.Empty;
-                s1 = Console.ReadLine();
-                stringRequest += s1 + "\r\n";
+                stringInput = Console.ReadLine();
+                stringRequest += stringInput + "\r\n";
 
-                do
+                while (true)
                 {
-                    s2 = s1;
-                    s1 = Console.ReadLine();
-                    stringRequest += s1 + "\r\n";
-                } while (s1.Length > 0 || s2.Length > 0);
+                    // if the input string ends with two empty lines then break the loop
+                    if ((intCursorTop == 0 && Regex.IsMatch(stringRequest, @"^\s*$")) || intCursorTop > 0)
+                    {
+                        break;
+                    }
 
-                // if the request is not blank then move the cursor up one line
-                if (Regex.IsMatch(stringRequest, @"\S+"))
-                {
-                    Console.CursorTop--;
+                    stringInput = Console.ReadLine();
+                    stringRequest += stringInput + "\r\n";
+
+                    // if the input string is empty then increment the cursor top integer
+                    if (Regex.IsMatch(stringInput, @"^\s*$"))
+                    {
+                        intCursorTop++;
+                    }
+                    else
+                    {
+                        intCursorTop = -1;
+                    }
                 }
+
+                // reset the console cursor
+                Console.CursorTop -= intCursorTop;
 
                 bytes = encoding.GetBytes(stringRequest.ToCharArray());
                 match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:(?<Port>\d+)");
