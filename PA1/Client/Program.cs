@@ -1,4 +1,5 @@
-﻿/*
+﻿
+/*
 *   Author:  Shaun Christensen
 *   Course:  CS 4480 - Computer Networks
 *   Created: 2016.01.31
@@ -23,6 +24,7 @@ namespace Client
         static string s1, s2, stringPort, stringRequest, stringResponse;
 
         static Encoding encoding;
+        static Match match;
         static Stream stream;
         static StreamReader streamReader;
         static TcpClient tcpClient;
@@ -39,28 +41,12 @@ namespace Client
 
                 stringPort = stringRequest = stringResponse = string.Empty;
                 s1 = Console.ReadLine();
-
-                // if the request contains an absolute URL followed by a port number then extract and remove the port number
-                if (Regex.IsMatch(s1, @"(?i)http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
-                {
-                    stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"\D+HTTP/1\.[01].*$", "");
-                    s1 = Regex.Replace(s1, @":" + stringPort + @"\DHTTP/1\.[01].*$", "") + Regex.Replace(s1, @"(?i)^.*http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:" + stringPort, "");
-                }
-
                 stringRequest += s1 + "\r\n";
 
                 do
                 {
                     s2 = s1;
                     s1 = Console.ReadLine();
-
-                    // if the header contains the host followed by a port number then extract and remove the port number
-                    if (stringPort.Length == 0 && Regex.IsMatch(s1, @"(?i)host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:\d+"))
-                    {
-                        stringPort = Regex.Replace(Regex.Replace(s1, @"(?i)^.*host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:", ""), @"(\D+.*)?$", "");
-                        s1 = Regex.Replace(s1, ":" + stringPort + @"(\D+.*)?$", "") + Regex.Replace(s1, @"(?i)^.*host\s*:\s*\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:" + stringPort, "");
-                    }
-
                     stringRequest += s1 + "\r\n";
                 } while (s1.Length > 0 || s2.Length > 0);
 
@@ -71,6 +57,13 @@ namespace Client
                 }
 
                 bytes = encoding.GetBytes(stringRequest.ToCharArray());
+                match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:(?<Port>\d+)");
+                
+                // if the request contains an absolute URL or a host header followed by a port number then extract and remove the port number
+                if (match.Success)
+                {
+                    stringPort = match.Groups["Port"].Value;
+                }
 
                 // if the port number cannot be parsed or is negative then set the port number to 80 by default
                 if (!int.TryParse(stringPort, out intPort) || intPort < 0)
@@ -97,7 +90,7 @@ namespace Client
                         }
                     }
                 }
-                catch (SocketException e)
+                catch (Exception e)
                 {
                     Console.WriteLine("Error: Unable to connect to proxy. " + e.Message + ".\n");
                 }

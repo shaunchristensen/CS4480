@@ -20,10 +20,10 @@ namespace Proxy
     {
         static byte[] bytes;
         static int intBytes, intPort;
-        static string stringBadRequest, stringHeader, stringHost, stringMethod, stringName, stringPath, stringRequest, stringResponse, stringValue, stringVersion;
-        static string[] s1, s2;
+        static string stringBody, stringHeader, stringHost, stringMethod, stringPath, stringRequest, stringResponse;
 
         static Encoding encoding;
+        static Match match;
         static Socket socket;
         static Stream stream;
         static StreamReader streamReader;
@@ -41,7 +41,6 @@ namespace Proxy
 
             encoding = Encoding.UTF8;
             tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), intPort);
-            stringBadRequest = "Unable to send request. 400 Bad Request - The request syntax is invalid.";
 
             try
             {
@@ -52,7 +51,7 @@ namespace Proxy
                 while (true)
                 {
                     bytes = new byte[1024];
-                    stringHeader = stringHost = stringRequest = stringResponse = string.Empty;
+                    stringHeader = stringHost = string.Empty;
 
                     using (socket = tcpListener.AcceptSocket())
                     {
@@ -64,97 +63,83 @@ namespace Proxy
 
                         Console.Write("Request received.");
 
+                        // fix me
+                        match = Regex.Match(stringRequest, @"(?n)^\s*(?<Method>[A-Z]+)\s*(?<Path>\S+)\s*HTTP/1\.[01]\s*(\r\n)*(?i)(?<Header>(\s*[a-z]+(-[a-z]+)*\s*:\s*\S+\s*(\r\n)+)*)(?<Body>\S*)");
+
                         // if the request syntax is valid then parse the request
-                        if (Regex.IsMatch(stringRequest, @"^\s*[A-Z]+\s*\S+\s*HTTP/1\.[01]\s*(?i)(\r\n\s*[a-z]+(-[a-z]+)*\s*:\s*\S+\s*)*((\r\n){1,2}.*)?\s*$"))
+                        if (match.Success)
                         {
-                            s1 = Regex.Split(stringRequest.Trim(), Environment.NewLine);
-                            s2 = Regex.Split(s1[0].Trim(), @"\s+");
-
-                            stringMethod = s2[0];
-
-                            // if the request contains an absolute URL followed then extract the host and path
-                            if (Regex.IsMatch(s2[1], @"(?i)^http://"))
-                            {
-                                stringPath = Regex.Replace(s2[1], @"(?i)^http://\w([-\w]*\w)?(\.\w([-\w]*\w)?)+", "");
-                                stringHost = Regex.Replace(Regex.Replace(s2[1], @"(?i)^http://", ""), stringPath, "");
-                            }
-                            // otherwise set the path
-                            else
-                            {
-                                stringPath = s2[1];
-                            }
-
-                            stringPath = stringPath.Length > 0 ? stringPath : "/";
-                            stringVersion = s2[2];
-
                             // if the request specifies the get method then parse the request
-                            if (stringMethod == "GET")
+                            if (match.Groups["Method"].Value == "GET")
                             {
-                                int intLines = s1.Length - 1;
-                                string stringBody = s1[intLines].Trim();
+                                stringMethod = match.Groups["Method"].Value;
+                                stringBody = match.Groups["Body"].Value;
 
-                                // if the last line is a header then process the header
-                                if (Regex.IsMatch(stringBody, @"(?i)^[a-z]+(-[a-z]+)*\s*:\s*\S+?$"))
+                                // if the request contains an absolute URL followed then extract the host and path
+                                if (Regex.IsMatch(match.Groups["Path"].Value, @"(?i)^http://"))
                                 {
-                                    intLines = s1.Length;
-                                    stringBody = string.Empty;
+                                    stringHost = Regex.Match(match.Groups["Path"].Value, @"(?in)^http://(\S+:\S*@)?(?<Host>\w([-\w]*\w)?(\.\w([-\w]*\w)?)+)(:\d+)?").Groups["Host"].Value;
+                                    stringPath = Regex.Match(match.Groups["Path"].Value, @"(?in)^http://\S+(?<Path>/\S*)$").Groups["Path"].Value;
+                                }
+                                // otherwise set the path
+                                else
+                                {
+                                    stringPath = match.Groups["Path"].Value;
                                 }
 
-                                for (int i = 1; i < intLines; i++)
+                                foreach (Match m in Regex.Matches(match.Groups["Header"].Value, @"(?in)^\s*(?<Name>[a-z]+(-[a-z]+)*)\s*:\s*(?<Value>\S+)\s*(\r\n)+$"))
                                 {
-                                    // if the line is blank then skip the line
-                                    if (s1[i].Length == 0)
-                                    {
-                                        continue;
-                                    }
-
-                                    s2 = Regex.Split(s1[i].Trim(), @":");
-
-                                    stringName = s2[0].Trim();
-                                    stringValue = s2[1].Trim();
-
                                     // if the header is the connection then skip the header
-                                    if (Regex.IsMatch(stringName, @"(?i)^connection$"))
+                                    if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^connection$"))
                                     {
                                         continue;
                                     }
                                     // otherwise if the header is the host then set the host
-                                    else if (Regex.IsMatch(stringName, @"(?i)^host$") && stringHost.Length == 0)
+                                    else if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^host$") && stringHost.Length == 0)
                                     {
-                                        stringHost = stringValue;
+                                        stringHost = Regex.Replace(m.Groups["Value"].Value, @":\d+$", "");
                                     }
                                     // otherwise parse the header
                                     else
                                     {
-                                        stringHeader += stringName + ": " + stringValue + "\r\n";
+                                        stringHeader += m.Groups["Name"].Value + ": " + m.Groups["Value"].Value + "\r\n";
                                     }
                                 }
 
-                                // if the host, path, and version are all not blank then send the request
-                                if (stringHost.Length > 0 && stringPath.Length > 0 && stringVersion.Length > 0)
+                                // if the host is not blank then send the request
+                                if (stringHost.Length > 0)
                                 {
-                                    stringRequest = stringMethod + " " + stringPath + " " + stringVersion + "\r\nHost: " + stringHost + "\r\nConnection: close\r\n" + stringHeader + "\r\n" + stringBody;
+                                    stringRequest = "GET " + (stringPath.Length > 0 ? stringPath : "/") + " HTTP/1.0\r\nHost: " + stringHost + "\r\nConnection: close\r\n" + stringHeader + "\r\n" + stringBody;
                                     bytes = encoding.GetBytes(stringRequest.ToCharArray());
 
-                                    using (TcpClient tcpClient = new TcpClient())
+                                    Console.WriteLine("Request: " + stringRequest);
+
+                                    try
                                     {
-                                        tcpClient.Connect(stringHost, 80);
-
-                                        using (stream = tcpClient.GetStream())
+                                        using (TcpClient tcpClient = new TcpClient())
                                         {
-                                            stream.Write(bytes, 0, bytes.Length);
+                                            tcpClient.Connect(stringHost, 80);
 
-                                            using (streamReader = new StreamReader(stream))
+                                            using (stream = tcpClient.GetStream())
                                             {
-                                                stringResponse = streamReader.ReadToEnd();
+                                                stream.Write(bytes, 0, bytes.Length);
+
+                                                using (streamReader = new StreamReader(stream))
+                                                {
+                                                    stringResponse = streamReader.ReadToEnd();
+                                                }
                                             }
                                         }
+                                    }
+                                    catch (SocketException e)
+                                    {
+                                        stringResponse = "Error: Unable to send request. " + e.Message;
                                     }
                                 }
                                 // otherwise send a bad request response
                                 else
                                 {
-                                    stringResponse = stringBadRequest;
+                                    stringResponse = "Unable to send request. The host is required.";
                                 }
                             }
                             // otherwise send a not implemented response
@@ -166,16 +151,16 @@ namespace Proxy
                         // otherwise send a bad request response
                         else
                         {
-                            stringResponse = stringBadRequest;
+                            stringResponse = "Unable to send request. 400 Bad Request - The request syntax is invalid.";
                         }
 
                         socket.Send(encoding.GetBytes(stringResponse));
-                    }
 
-                    Console.WriteLine(" Response sent.");
+                        Console.WriteLine(" Response sent.");
+                    }
                 }
             }
-            catch (FormatException e)
+            catch (Exception e)
             {
                 Console.WriteLine("Error: " + e.Message);
             }
