@@ -20,7 +20,7 @@ namespace Client
     class Program
     {
         static byte[] bytes;
-        static int intCursorTop, intPort;
+        static int intInput, intPort;
         static string stringInput, stringPort, stringRequest, stringResponse;
 
         static Encoding encoding;
@@ -45,35 +45,47 @@ namespace Client
 
                 Console.Write("Enter HTTP request: ");
 
-                intCursorTop = -1;
+                intInput = 0;
                 stringPort = stringRequest = stringResponse = string.Empty;
-                stringInput = Console.ReadLine();
-                stringRequest += stringInput + "\r\n";
 
                 while (true)
                 {
-                    // if the input string ends with two empty lines then break the loop
-                    if ((intCursorTop == 0 && Regex.IsMatch(stringRequest, @"^\s*$")) || intCursorTop > 0)
-                    {
-                        break;
-                    }
+                    // ignore \n, \r, and whitespace input
+                    //                    stringInput = Regex.Match(Console.ReadLine(), @"(?n)^[\\n|\\r|\s]*(?<Input>[^\\n|\\r|\s](.*[^\\n|\\r|\s])?)?[\\n|\\r|\s]*$").Groups["Input"].Value;
+                    stringInput = Console.ReadLine().Trim();
 
-                    stringInput = Console.ReadLine();
-                    stringRequest += stringInput + "\r\n";
-
-                    // if the input string is empty then increment the cursor top integer
-                    if (Regex.IsMatch(stringInput, @"^\s*$"))
+                    // if the input string is empty then check for error or break conditions
+                    if (stringInput == string.Empty)
                     {
-                        intCursorTop++;
+                        // if the input integer equals 1 and the request string is empty then display an error and reset the input integer and request string
+                        if (intInput == 1 && Regex.IsMatch(stringRequest, @"^\s*$"))
+                        {
+                            Console.Write("Error: HTTP request is required. Please try again.\n\nEnter HTTP request: ");
+
+                            intInput = 0;
+                            stringRequest = string.Empty;
+                        }
+                        // otherwise if the input integer equals 2 then reset the console cursor position and break the loop
+                        else if (intInput == 2)
+                        {
+                            Console.CursorTop--;
+
+                            break;
+                        }
+                        // otherwise increment the input integer and append a carriage return and new line to the request string
+                        else
+                        {
+                            intInput++;
+                            stringRequest += "\r\n";
+                        }
                     }
+                    // otherwise set the input integer and append the input string, carriage return, and a new line to the request string
                     else
                     {
-                        intCursorTop = -1;
+                        intInput = 1;
+                        stringRequest += stringInput + "\r\n";
                     }
                 }
-
-                // reset the console cursor
-                Console.CursorTop -= intCursorTop;
 
                 bytes = encoding.GetBytes(stringRequest.ToCharArray());
                 match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:(?<Port>\d+)");

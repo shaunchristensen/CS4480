@@ -11,6 +11,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -46,7 +47,7 @@ namespace Proxy
             {
                 tcpListener.Start();
 
-                Console.WriteLine("Proxy is listening for connections on port " + intPort + ".");
+                Console.WriteLine("\nProxy is listening for connections on port " + intPort + ".\n");
 
                 while (true)
                 {
@@ -63,8 +64,7 @@ namespace Proxy
 
                         Console.Write("Request received.");
 
-                        // fix me
-                        match = Regex.Match(stringRequest, @"(?n)^\s*(?<Method>[A-Z]+)\s*(?<Path>\S+)\s*HTTP/1\.[01]\s*(\r\n)*(?i)(?<Header>(\s*[a-z]+(-[a-z]+)*\s*:\s*\S+\s*(\r\n)+)*)(?<Body>\S*)");
+                        match = Regex.Match(stringRequest, @"(?n)^\s*(?<Method>[A-Z]+)\s+(?<Path>\S+)\s+HTTP/1\.[01]\s*(?i)(?<Header>(\r\n\s*[a-z]+(-[a-z]+)*\s*:\s*\S(.*\S)\s*)*)?((\r\n){2}(?<Body>.*))?(\r\n){2}$");
 
                         // if the request syntax is valid then parse the request
                         if (match.Success)
@@ -79,7 +79,7 @@ namespace Proxy
                                 if (Regex.IsMatch(match.Groups["Path"].Value, @"(?i)^http://"))
                                 {
                                     stringHost = Regex.Match(match.Groups["Path"].Value, @"(?in)^http://(\S+:\S*@)?(?<Host>\w([-\w]*\w)?(\.\w([-\w]*\w)?)+)(:\d+)?").Groups["Host"].Value;
-                                    stringPath = Regex.Match(match.Groups["Path"].Value, @"(?in)^http://\S+(?<Path>/\S*)$").Groups["Path"].Value;
+                                    stringPath = Regex.Match(match.Groups["Path"].Value, stringHost + @"(?n)(:\d+)?(?<Path>/.*)$").Groups["Path"].Value;
                                 }
                                 // otherwise set the path
                                 else
@@ -109,10 +109,62 @@ namespace Proxy
                                 // if the host is not blank then send the request
                                 if (stringHost.Length > 0)
                                 {
+
+
+
+
+                                    WebClient webClient = new WebClient();
+
+                                    // download file?
+                                    // hash file
+
+                                    using (SHA1Managed sha1Managed = new SHA1Managed())
+                                    {
+                                        bytes = encoding.GetBytes(("whois -h hash.cymru.com " + Regex.Replace(BitConverter.ToString(sha1Managed.ComputeHash(webClient.DownloadData("http://" + stringHost + stringPath))), "-", "") + "\n").ToCharArray());
+                                    }
+
+                                    try
+                                    {
+                                        using (TcpClient tcpClient = new TcpClient())
+                                        {
+                                            tcpClient.Connect("hash.cymru.com", 43);
+
+                                            using (stream = tcpClient.GetStream())
+                                            {
+                                                stream.Write(bytes, 0, bytes.Length);
+
+                                                using (streamReader = new StreamReader(stream))
+                                                {
+                                                    string s = streamReader.ReadToEnd();
+                                                    Console.WriteLine(s);
+                                                    if (Regex.IsMatch(s, @"(?i)^\w+\s+\d+\s+\d+"))
+                                                    {
+                                                        // return html page
+                                                        stringResponse = "Bad stuff";
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch (SocketException e)
+                                    {
+                                        // fix
+                                        stringResponse = "Error: Unable to hash stuff. " + e.Message;
+                                    }
+
+
+
+
+
+
+
+
+
+
+
+
                                     stringRequest = "GET " + (stringPath.Length > 0 ? stringPath : "/") + " HTTP/1.0\r\nHost: " + stringHost + "\r\nConnection: close\r\n" + stringHeader + "\r\n" + stringBody;
                                     bytes = encoding.GetBytes(stringRequest.ToCharArray());
-
-                                    Console.WriteLine("Request: " + stringRequest);
 
                                     try
                                     {
