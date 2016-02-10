@@ -2,7 +2,7 @@
 *   Author:  Shaun Christensen
 *   Course:  CS 4480 - Computer Networks
 *   Created: 2016.01.31
-*   Edited:  2016.02.02
+*   Edited:  2016.02.09
 *   Project: PA1
 *   Summary: Build a web proxy capable of accepting HTTP requests, forwarding requests to remote (origin) servers, and returning response data to a client. The proxy must handle concurrent requests.
 */
@@ -108,20 +108,20 @@ namespace Proxy
                                     }
                                 }
 
-                                // if ...
+                                // 
                                 if (stringHost.Length > 0)
                                 {
                                     try
                                     {
                                         using (WebClient webClient = new WebClient())
                                         {
-                                            using (SHA1Managed sha1Managed = new SHA1Managed())
+                                            using (SHA1 sha1 = new SHA1Managed())
                                             {
-                                                bytes = sha1Managed.ComputeHash(webClient.DownloadData("http://" + stringHost + stringPath));
+                                                bytes = sha1.ComputeHash(webClient.DownloadData("http://" + stringHost + stringPath));
                                             }
                                         }
 
-                                        bytes = encoding.GetBytes(("whois -h hash.cymru.com " + Regex.Replace(BitConverter.ToString(bytes), "-", "") + "\n").ToCharArray());
+                                        bytes = encoding.GetBytes(("whois -h hash.cymru.com " + BitConverter.ToString(bytes).Replace("-", "") + "\n").ToCharArray());
 
                                         try
                                         {
@@ -149,11 +149,11 @@ namespace Proxy
                                     {
                                         Console.WriteLine("Error: Unable to download the file. " + e.Message);
                                     }
-
+                                    Console.WriteLine(stringResponse);
                                     // bad
                                     if (Regex.IsMatch(stringResponse, @"(?i)^\w+\s+\d+\s+\d+"))
                                     {
-                                        stringResponse = "<!doctype html>\n<html>\n<head>\n	<meta charset=\"utf-8\">\n	<title>Error - Malware Detected</title>\n</head>\n<body>\n	<h1>Error - Malware Detected</h1><hr><br /><br />\n	Unable to fulfill the request. The file may contain malicious content.\n</body>\n</html>";
+                                        stringResponse = "<!doctype html>\n<html>\n<head>\n\t<meta charset=\"utf-8\">\n\t<title>Error - Malware Detected</title>\n</head>\n<body>\n\t<h1>Error - Malware Detected</h1><hr><br /><br />\n\n\tUnable to fulfill the request. The file appears to contain malicious content.\n</body>\n</html>";
                                     }
                                     // otherwise good
                                     else
