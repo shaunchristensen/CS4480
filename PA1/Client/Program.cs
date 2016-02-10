@@ -1,5 +1,4 @@
-﻿
-/*
+﻿/*
 *   Author:  Shaun Christensen
 *   Course:  CS 4480 - Computer Networks
 *   Created: 2016.01.31
@@ -50,9 +49,8 @@ namespace Client
 
                 while (true)
                 {
-                    // ignore \n, \r, and whitespace input
-                    //                    stringInput = Regex.Match(Console.ReadLine(), @"(?n)^[\\n|\\r|\s]*(?<Input>[^\\n|\\r|\s](.*[^\\n|\\r|\s])?)?[\\n|\\r|\s]*$").Groups["Input"].Value;
-                    stringInput = Console.ReadLine().Trim();
+                    // remove \r, \n, and whitespace from the input string
+                    stringInput = Regex.Replace(Console.ReadLine().Trim(), @"\\r|\\n", "");
 
                     // if the input string is empty then check for error or break conditions
                     if (stringInput == string.Empty)
