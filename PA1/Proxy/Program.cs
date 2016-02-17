@@ -21,14 +21,17 @@ namespace Proxy
     {
         static byte[] bytes;
         static int intBytes, intPort;
-        static string stringBody, stringHeader, stringHost, stringMethod, stringPath, stringRequest, stringResponse;
+        static string stringBody, stringHeader, stringHost, stringMethod, stringPath, stringRequest;
 
-        static Encoding encoding;
         static Match match;
+        static MemoryStream memoryStream;
+        static SHA1 sha1;
         static Socket socket;
         static Stream stream;
         static StreamReader streamReader;
+        static TcpClient tcpClient;
         static TcpListener tcpListener;
+        static WebClient webClient;
 
         static void Main(string[] args)
         {
@@ -40,7 +43,6 @@ namespace Proxy
                 intPort = 80;
             }
 
-            encoding = Encoding.UTF8;
             tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), intPort);
 
             try
@@ -51,21 +53,20 @@ namespace Proxy
 
                 while (true)
                 {
-                    bytes = new byte[1024];
-                    stringRequest = string.Empty;
-
                     using (socket = tcpListener.AcceptSocket())
                     {
+                        bytes = new byte[1024];
+                        stringHeader = stringHost = stringRequest = string.Empty;
+
                         while (socket.Available > 0)
                         {
                             intBytes = socket.Receive(bytes);
-                            stringRequest += encoding.GetString(bytes, 0, intBytes);
+                            stringRequest += Encoding.UTF8.GetString(bytes, 0, intBytes);
                         }
 
-                        Console.Write("Request received.");
+//                        Console.Write("Request received.");
 
                         match = Regex.Match(stringRequest, @"(?n)^\s*(?<Method>[A-Z]+)\s+(?<Path>\S+)\s+HTTP/1\.[01]\s*(?i)(?<Header>(\r\n\s*[a-z]+(-[a-z]+)*\s*:\s*\S(.*\S)?\s*)*)?((\r\n){2}(?<Body>\S(.*\S)?))?(\r\n){2}$");
-                        stringHeader = stringHost = stringResponse = string.Empty;
 
                         // if the request syntax is valid then parse the request
                         if (match.Success)
@@ -91,17 +92,20 @@ namespace Proxy
                                 foreach (Match m in Regex.Matches(Regex.Replace(match.Groups["Header"].Value.Trim(), @"\r", ""), @"(?imn)^\s*(?<Name>[a-z]+(-[a-z]+)*)\s*:\s*(?<Value>\S(.*\S)?)\s*$"))
                                 {
                                     // if the header is the connection then skip the header
-                                    if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^connection$"))
+                                    if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^connection$"))// || (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)encoding") && Regex.IsMatch(m.Groups["Value"].Value, @"(?i)gzip")))
                                     {
                                         continue;
                                     }
-                                    // otherwise if the header is the host then set the host
-                                    else if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^host$") && stringHost.Length == 0)
+                                    // otherwise if the header is the host then check the host
+                                    else if (Regex.IsMatch(m.Groups["Name"].Value, @"(?i)^host$"))
                                     {
-
-                                        stringHost = Regex.Replace(m.Groups["Value"].Value, @":\d+$", "");
+                                        // if the host is empty then set the host
+                                        if (stringHost.Length == 0)
+                                        {
+                                            stringHost = Regex.Replace(m.Groups["Value"].Value, @":\d+$", "");
+                                        }
                                     }
-                                    // otherwise parse the header
+                                    // otherwise append the header
                                     else
                                     {
                                         stringHeader += m.Groups["Name"].Value + ": " + m.Groups["Value"].Value + "\r\n";
@@ -113,19 +117,17 @@ namespace Proxy
                                 {
                                     try
                                     {
-                                        using (WebClient webClient = new WebClient())
+                                        using (sha1 = new SHA1Managed())
                                         {
-                                            using (SHA1 sha1 = new SHA1Managed())
+                                            using (webClient = new WebClient())
                                             {
-                                                bytes = sha1.ComputeHash(webClient.DownloadData("http://" + stringHost + stringPath));
+                                                bytes = Encoding.UTF8.GetBytes(("whois -h hash.cymru.com " + BitConverter.ToString(sha1.ComputeHash(webClient.DownloadData("http://" + stringHost + stringPath))).Replace("-", "") + "\n").ToCharArray());
                                             }
                                         }
 
-                                        bytes = encoding.GetBytes(("whois -h hash.cymru.com " + BitConverter.ToString(bytes).Replace("-", "") + "\n").ToCharArray());
-
                                         try
                                         {
-                                            using (TcpClient tcpClient = new TcpClient())
+                                            using (tcpClient = new TcpClient())
                                             {
                                                 tcpClient.Connect("hash.cymru.com", 43);
 
@@ -135,76 +137,81 @@ namespace Proxy
 
                                                     using (streamReader = new StreamReader(stream))
                                                     {
-                                                        stringResponse = streamReader.ReadToEnd();
+                                                        // fix me
+                                                        if (Regex.IsMatch(streamReader.ReadToEnd(), @"(?i)^\w+\s+\d+\s+\d+"))
+                                                        {
+                                                            bytes = Encoding.UTF8.GetBytes(("<!doctype html>\n<html>\n<head>\n\t<meta charset=\"utf-8\">\n\t<title>Error - Malware Detected</title>\n</head>\n<body>\n\t<h1>Error - Malware Detected</h1><hr><br /><br />\n\n\tUnable to fulfill the request. The file appears to contain malicious content.\n</body>\n</html>").ToCharArray());
+                                                        }
+                                                        // fix me
+                                                        else
+                                                        {
+                                                            try
+                                                            {
+                                                                bytes = Encoding.UTF8.GetBytes(("GET " + (stringPath.Length > 0 ? stringPath : "/") + " HTTP/1.0\r\nHost: " + stringHost + "\r\n" + stringHeader + "Connection: close\r\n\r\n" + stringBody).ToCharArray());
+
+                                                                tcpClient = new TcpClient();
+                                                                tcpClient.Connect(stringHost, 80);
+
+                                                                stream = tcpClient.GetStream();
+                                                                stream.Write(bytes, 0, bytes.Length);
+
+                                                                try
+                                                                {
+                                                                    using (memoryStream = new MemoryStream())
+                                                                    {
+                                                                        while ((intBytes = stream.Read(bytes, 0, bytes.Length)) > 0)
+                                                                        {
+                                                                            memoryStream.Write(bytes, 0, intBytes);
+                                                                        }
+
+                                                                        bytes = memoryStream.ToArray();
+                                                                    }
+                                                                }
+                                                                catch (Exception e)
+                                                                {
+                                                                    bytes = Encoding.UTF8.GetBytes(("Error: Unable to read the response. " + e.Message).ToCharArray());
+                                                                }
+                                                            }
+                                                            catch (Exception e)
+                                                            {
+                                                                bytes = Encoding.UTF8.GetBytes(("Error: Unable to send the request. " + e.Message).ToCharArray());
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                         catch (Exception e)
                                         {
-                                            Console.WriteLine("Error: Unable to check the hash. " + e.Message);
+                                            Console.WriteLine("Error: Unable to compute the hash. " + e.Message);
                                         }
                                     }
                                     catch (Exception e)
                                     {
-                                        Console.WriteLine("Error: Unable to download the file. " + e.Message);
-                                    }
-                                    Console.WriteLine(stringResponse);
-                                    // bad
-                                    if (Regex.IsMatch(stringResponse, @"(?i)^\w+\s+\d+\s+\d+"))
-                                    {
-                                        stringResponse = "<!doctype html>\n<html>\n<head>\n\t<meta charset=\"utf-8\">\n\t<title>Error - Malware Detected</title>\n</head>\n<body>\n\t<h1>Error - Malware Detected</h1><hr><br /><br />\n\n\tUnable to fulfill the request. The file appears to contain malicious content.\n</body>\n</html>";
-                                    }
-                                    // otherwise good
-                                    else
-                                    {
-                                        stringRequest = "GET " + (stringPath.Length > 0 ? stringPath : "/") + " HTTP/1.0\r\nHost: " + stringHost + "\r\n" + stringHeader + "Connection: close\r\n\r\n" + stringBody;
-                                        bytes = encoding.GetBytes(stringRequest.ToCharArray());
-
-                                        try
-                                        {
-                                            using (TcpClient tcpClient = new TcpClient())
-                                            {
-                                                tcpClient.Connect(stringHost, 80);
-
-                                                using (stream = tcpClient.GetStream())
-                                                {
-                                                    stream.Write(bytes, 0, bytes.Length);
-
-                                                    using (streamReader = new StreamReader(stream))
-                                                    {
-                                                        stringResponse = streamReader.ReadToEnd();
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        catch (SocketException e)
-                                        {
-                                            stringResponse = "Error: Unable to send the request. " + e.Message;
-                                        }
+                                        Console.WriteLine("Error: Unable to download the data. " + e.Message);
                                     }
                                 }
                                 // otherwise send a bad request response
                                 else
                                 {
-                                    stringResponse = "Unable to send the request. The host is required.";
+                                    bytes = Encoding.UTF8.GetBytes(("Unable to send the request. The host is required.").ToCharArray());
                                 }
                             }
                             // otherwise send a not implemented response
                             else
                             {
-                                stringResponse = "Unable to send the request. 501 Not Implemented - The " + stringMethod + " method is unsupported.";
+                                bytes = Encoding.UTF8.GetBytes(("Unable to send the request. 501 Not Implemented - The " + stringMethod + " method is unsupported.").ToCharArray());
                             }
                         }
                         // otherwise send a bad request response
                         else
                         {
-                            stringResponse = "Unable to send the request. 400 Bad Request - The request syntax is invalid.";
+                            bytes = Encoding.UTF8.GetBytes(("Unable to send the request. 400 Bad Request - The request syntax is invalid.").ToCharArray());
                         }
 
-                        socket.Send(encoding.GetBytes(stringResponse));
+                        socket.Send(bytes);
 
-                        Console.WriteLine(" Response sent.");
+//                        Console.WriteLine(" Response sent.");
                     }
                 }
             }

@@ -20,9 +20,8 @@ namespace Client
     {
         static byte[] bytes;
         static int intInput, intPort;
-        static string stringInput, stringPort, stringRequest, stringResponse;
+        static string stringInput, stringPort, stringRequest;
 
-        static Encoding encoding;
         static Match match;
         static Stream stream;
         static StreamReader streamReader;
@@ -31,8 +30,6 @@ namespace Client
         static void Main(string[] args)
         {
             Console.WriteLine("Starting client on localhost. Enter two blank linkes successively to execute HTTP requests.\n");
-
-            encoding = Encoding.UTF8;
 
             while (true)
             {
@@ -45,7 +42,7 @@ namespace Client
                 Console.Write("Enter HTTP request: ");
 
                 intInput = 0;
-                stringPort = stringRequest = stringResponse = string.Empty;
+                stringPort = stringRequest = string.Empty;
 
                 while (true)
                 {
@@ -85,7 +82,7 @@ namespace Client
                     }
                 }
 
-                bytes = encoding.GetBytes(stringRequest.ToCharArray());
+                bytes = Encoding.UTF8.GetBytes(stringRequest.ToCharArray());
                 match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:(?<Port>\d+)");
                 
                 // if the request contains an absolute URL or a host header followed by a port number then extract and remove the port number
@@ -112,9 +109,7 @@ namespace Client
 
                             using (streamReader = new StreamReader(stream))
                             {
-                                stringResponse = streamReader.ReadToEnd();
-
-                                Console.WriteLine(stringResponse + "\n");
+                                Console.WriteLine(streamReader.ReadToEnd() + "\n");
                             }
                         }
                     }
