@@ -20,7 +20,7 @@ namespace Proxy
 {
     class Program
     {
-            static void Main(string[] args)
+        static void Main(string[] args)
         {
             StartProxy().Wait();
         }
@@ -55,7 +55,7 @@ namespace Proxy
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error: " + e.Message);
+                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: " + e.Message);
             }
             finally
             {
@@ -176,31 +176,31 @@ namespace Proxy
                             }
                             catch (ArgumentNullException e)
                             {
-                                Console.WriteLine("Error: Unable to compute the hash. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH: mm:ss") + "] Error: Unable to compute the hash. " + e.Message);
                             }
                             catch (OutOfMemoryException e)
                             {
-                                Console.WriteLine("Error: Unable to receive the response. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: Unable to receive the response. " + e.Message);
                             }
                             catch (SocketException e)
                             {
-                                Console.WriteLine("Error: Unable to connect to the host. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: Unable to connect to the host. " + e.Message);
                             }
                             catch (WebException e)
                             {
-                                Console.WriteLine("Error: Unable to download the data. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: Unable to download the data. " + e.Message);
                             }
                             catch (Exception e) when (e is ArgumentException || e is ArgumentOutOfRangeException)
                             {
-                                Console.WriteLine("Error: Unable to send the request. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: Unable to send the request. " + e.Message);
                             }
                             catch (Exception e) when (e is IOException || e is NotSupportedException)
                             {
-                                Console.WriteLine("Error: Unable to access the stream. " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: Unable to access the stream. " + e.Message);
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine("Error: " + e.Message);
+                                Console.WriteLine("[" + DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss") + "] Error: " + e.Message);
                             }
 
                             // if any malware is detected then send an infected file response
