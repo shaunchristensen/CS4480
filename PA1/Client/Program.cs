@@ -2,7 +2,7 @@
 *   Author:  Shaun Christensen
 *   Course:  CS 4480 - Computer Networks
 *   Created: 2016.01.31
-*   Edited:  2016.02.09
+*   Edited:  2016.02.21
 *   Project: PA1
 *   Summary: Build a web proxy capable of accepting HTTP requests, forwarding requests to remote (origin) servers, and returning response data to a client. The proxy must handle concurrent requests.
 */
@@ -31,6 +31,7 @@ namespace Client
         {
             Console.WriteLine("Starting client on localhost. Enter two blank linkes successively to execute HTTP requests.\n");
 
+            //
             while (true)
             {
                 // clear the console buffer
@@ -44,15 +45,15 @@ namespace Client
                 intInput = 0;
                 stringPort = stringRequest = string.Empty;
 
+                // continusouly read the input
                 while (true)
                 {
-                    // remove \r, \n, and whitespace from the input string
                     stringInput = Regex.Replace(Console.ReadLine().Trim(), @"\\r|\\n", "");
 
-                    // if the input string is empty then check for error or break conditions
+                    // if the input is empty then check for errors
                     if (stringInput == string.Empty)
                     {
-                        // if the input integer equals 1 and the request string is empty then display an error and reset the input integer and request string
+                        // if the input integer equals 1 and the request is empty then display an error message and reset the input integer and request
                         if (intInput == 1 && Regex.IsMatch(stringRequest, @"^\s*$"))
                         {
                             Console.Write("Error: HTTP request is required. Please try again.\n\nEnter HTTP request: ");
@@ -67,14 +68,14 @@ namespace Client
 
                             break;
                         }
-                        // otherwise increment the input integer and append a carriage return and new line to the request string
+                        // otherwise increment the input integer and append a carriage return and a new line to the request
                         else
                         {
                             intInput++;
                             stringRequest += "\r\n";
                         }
                     }
-                    // otherwise set the input integer and append the input string, carriage return, and a new line to the request string
+                    // otherwise set the input integer and append the input, a carriage return, and a new line to the request
                     else
                     {
                         intInput = 1;
@@ -83,15 +84,15 @@ namespace Client
                 }
 
                 bytes = Encoding.UTF8.GetBytes(stringRequest.ToCharArray());
-                match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)+:(?<Port>\d+)");
-                
-                // if the request contains an absolute URL or a host header followed by a port number then extract and remove the port number
+                match = Regex.Match(stringRequest, @"(?in)(host\s*:\s*|http://)\w([-\w]*\w)?(\.\w([-\w]*\w)?)*:(?<Port>\d+)");
+
+                // if the request contains a port number then set the port number
                 if (match.Success)
                 {
                     stringPort = match.Groups["Port"].Value;
                 }
 
-                // if the port number cannot be parsed or is negative then set the port number to 80 by default
+                // if the port number cannot be parsed or the port number is less than 0 then set the default port number
                 if (!int.TryParse(stringPort, out intPort) || intPort < 0)
                 {
                     intPort = 80;
